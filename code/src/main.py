@@ -5,7 +5,7 @@ REUTERS_FINANCE_URL = "https://ir.thomsonreuters.com/rss/news-releases.xml?items
 
 
 # Make request to feed url 
-def get_feed(url):
+def get_feed(url: str) -> dict:
   try:
     response = requests.get(url=url, timeout=10)
     response.raise_for_status()
@@ -14,13 +14,13 @@ def get_feed(url):
     print(f"Error fetching feed: {e}")
     return None
 
-# ['bozo', 'entries', 'feed', 'headers', 'etag', 'updated', 'updated_parsed', 'href', 'status', 'encoding', 'version', 'namespaces']
-feed = get_feed(REUTERS_FINANCE_URL)
-print(feed['headers'])
-# feed['bozo'], feed['feed'], feed['headers']
 
-# entry keys 
-# ['title', 'title_detail', 'links', 'link', 'summary', 'summary_detail', 'published', 'published_parsed', 'authors', 'author', 'author_detail', 'id', 'guidislink']  
-# for entry in feed.entries:
-#     if entry.title == 'Thomson Reuters Files 2025 Annual Report':
-#       print([k for k in entry])
+def create_dict(key_list: list[str]) -> list:
+  new_dict = {k:v for (k,v) in feed.items() if k in key_list}
+  return new_dict
+
+
+feed = get_feed(REUTERS_FINANCE_URL)
+key_list = ['etag','updated', 'updated_parsed', 'href'] 
+print(create_dict(key_list))
+
