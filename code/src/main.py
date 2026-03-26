@@ -1,8 +1,13 @@
 import requests
 import feedparser
 
-REUTERS_FINANCE_URL = "https://ir.thomsonreuters.com/rss/news-releases.xml?items=15"
-
+ITEM_CNT = 15
+REUTERS_FINANCE_URL = f"""
+https://ir.thomsonreuters.com/rss/news-releases.xml?items={ITEM_CNT}
+"""
+HEADER_KEYS = ['etag','updated', 'updated_parsed', 'href']
+ENTRY_KEYS = ['title', 'summary', 'published', 'published_parsed', 'id'
+              , 'link']
 
 # Make request to feed url 
 def get_feed(url: str) -> dict:
@@ -14,13 +19,20 @@ def get_feed(url: str) -> dict:
     print(f"Error fetching feed: {e}")
     return None
 
-
-def create_dict(key_list: list[str]) -> list:
+# Extract header details
+def process_header(feed: dict, key_list: list[str]) -> list:
   new_dict = {k:v for (k,v) in feed.items() if k in key_list}
   return new_dict
 
+# Extract entry details
+def process_entries(feed: dict, key_list: list[str]) -> dict:
+  processed_entries = [
+    {key: entry.get(key) for key in key_list}
+    for entry in feed.entries
+    ]
+  return processed_entries
 
-feed = get_feed(REUTERS_FINANCE_URL)
-key_list = ['etag','updated', 'updated_parsed', 'href'] 
-print(create_dict(key_list))
-
+if __name__ == "__main__":
+  feed = get_feed(REUTERS_FINANCE_URL)
+  header_dict = process_header(feed, HEADER_KEYS)
+  entry_dict = process_entries(feed, ENTRY_KEYS)
