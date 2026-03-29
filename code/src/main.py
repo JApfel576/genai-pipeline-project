@@ -2,6 +2,7 @@ from feedpoller import FeedPoller
 import json
 
 if __name__ == "__main__":
-  f = FeedPoller()
-  data = f.header_entries()
-  print(json.dumps(data, indent=2))
+  poller = FeedPoller()
+  now_utc = poller.get_now_utc()
+  data = poller.header_entries()
+  poller.write_to_file(data)

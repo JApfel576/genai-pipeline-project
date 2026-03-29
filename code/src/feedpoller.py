@@ -2,6 +2,8 @@ import requests
 import feedparser
 from datetime import datetime, timezone
 from pathlib import Path
+import platform
+import json
 
 
 ITEM_CNT = 15 # item count stays the same
@@ -11,7 +13,7 @@ https://ir.thomsonreuters.com/rss/news-releases.xml?items={ITEM_CNT}
 HEADER_KEYS = ['etag','updated', 'updated_parsed', 'href']
 ENTRY_KEYS = ['title', 'summary', 'published', 'published_parsed', 'id'
               , 'link']
-OUT_PATH = '/code/output/'
+OUT_PATH = '/code/output/data/'
 
 
 class FeedPoller():
@@ -80,14 +82,27 @@ class FeedPoller():
       .strftime('%Y%m%d_%H%M%S')
     return now_utc
   
+  # format path for windows machine
   def format_path(self):
     cwd = Path.cwd()
-    cwd = str(cwd).replace('\\', '/').replace(':', '')
+    if platform.system() == "Windows":
+      cwd = str(cwd).replace('\\', '/')
     return cwd
+  
+  # create file name using current working dir and current time 
+  def create_filename(self, ext='.json'):
+    cwd = self.format_path()
+    now_utc = self.get_now_utc()
+    filename = str(cwd) + self.out_path + now_utc + ext 
+    return filename
   
   # Append changes to existing file or create new
   def write_to_file(self, header_entries:dict):
-    cwd = self.format_path()
-    now_utc = self.get_now_utc()
-    filename = str(cwd) + self.out_path + now_utc
-    return filename
+    data = self.header_entries()
+    filename = self.create_filename()
+    try: 
+      with open(filename, 'x') as file:
+        json.dump(data, file, indent=4)
+        print(f"File written to {filename}")
+    except FileExistsError:
+        print(f"File could not be written to {filename}")
