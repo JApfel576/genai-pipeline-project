@@ -11,8 +11,7 @@ REUTERS_FINANCE_URL = f"""
 https://ir.thomsonreuters.com/rss/news-releases.xml?items={ITEM_CNT}
 """
 HEADER_KEYS = ['etag','updated', 'updated_parsed', 'href']
-ENTRY_KEYS = ['title', 'summary', 'published', 'published_parsed', 'id'
-              , 'link']
+ENTRY_KEYS = ['title', 'summary', 'published', 'published_parsed', 'guid', 'link']
 OUT_PATH = '/code/output/data/'
 
 
@@ -93,14 +92,14 @@ class FeedPoller():
         print(f"File could not be written to {filename}")
 
   # create path for files
-  def create_path(self): 
+  def create_path(self) -> str: 
     cwd = self.format_path()
     data_path = self.out_path
     relative_path = str(cwd) + data_path
     return relative_path
 
   # get file name
-  def get_files(self):
+  def get_files(self) -> list:
     relative_path = self.create_path()
     path = Path(relative_path)
     filenames = [file.name for file in path.iterdir()]
@@ -118,26 +117,44 @@ class FeedPoller():
     except FileNotFoundError:
         print(f"File could not be found")
   
-  # def update_last(self):
-  #   data = self.latest_file()
-  #   # Store last seen values. Update to retrieve
-  #   try:
-  #     self.last_etag = data.get('etag') 
-  #     self.last_updated = data.get('last_updated')
-  #     self.last_hash = "".join(e.get('id') for e in data)
-  #   except KeyError:
-  #     print("Key can not be found")
+  # get identifiers from data
+  def get_identifiers(self, data: dict) -> dict:
+    etag = data.get('etag')
+    last_updated = data.get('last_updated')
+    hash = "".join(e.get('guid') for e in data['items'])
+    identity_dict = {"etag": etag
+                     , "last_updated":last_updated
+                     , "hash": hash} 
+    return identity_dict
 
-  # # Check if feed has changed based on header
-  # def has_changed(self, feed:dict) -> bool:
-  #   etag = feed.get('etag')
-  #   if etag != self.last_etag:
-  #     return True
-  #   updated = feed.get('updated')
-  #   if updated != self.last_updated:
-  #     return True
-  #   entries = feed.get('entries')
-  #   hash = "".join(e.get('id') for e in entries)
-  #   if hash != self.last_hash:
-  #     return True
-  #   return False
+  # get identifiers from previous file
+  def last_identifiers(self):
+    last_data = self.latest_file()
+    identity_dict = self.get_identifiers(last_data)
+    last_etag = identity_dict.get('etag')
+    last_updated = identity_dict.get('last_updated')
+    last_hash = identity_dict.get('hash') 
+    try:
+      if last_etag is not None:
+        self.last_etag = last_etag 
+      if last_updated is not None: 
+        self.last_updated = last_updated
+      if last_updated is not None:
+        self.last_hash = last_hash
+    except KeyError:
+      print("Key can not be found")
+
+  # revisit below
+  # Check if feed has changed based on header
+  def has_changed(self, feed:dict) -> bool:
+    etag = feed.get('etag')
+    if etag != self.last_etag:
+      return True
+    updated = feed.get('updated')
+    if updated != self.last_updated:
+      return True
+    entries = feed.get('entries')
+    hash = "".join(e.get('id') for e in entries)
+    if hash != self.last_hash:
+      return True
+    return False
