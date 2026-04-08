@@ -8,6 +8,3 @@ if __name__ == "__main__":
   has_changed = poller.has_changed(data)
   if has_changed:
     poller.write_to_file(data)
-
-  
-  
