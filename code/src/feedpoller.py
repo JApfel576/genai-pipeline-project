@@ -119,8 +119,8 @@ class FeedPoller():
   
   # get identifiers from data
   def get_identifiers(self, data: dict) -> dict:
-    etag = data.get('etag')
-    last_updated = data.get('last_updated')
+    etag = [e.get('etag') for e in data['header']]
+    last_updated = [e.get('last_updated') for e in data['header']]
     hash = "".join(e.get('guid') for e in data['items'])
     identity_dict = {"etag": etag
                      , "last_updated":last_updated
@@ -142,19 +142,22 @@ class FeedPoller():
       if last_updated is not None:
         self.last_hash = last_hash
     except KeyError:
-      print("Key can not be found")
+      print("Key not found")
 
-  # revisit below
-  # Check if feed has changed based on header
-  def has_changed(self, feed:dict) -> bool:
-    etag = feed.get('etag')
-    if etag != self.last_etag:
-      return True
-    updated = feed.get('updated')
-    if updated != self.last_updated:
-      return True
-    entries = feed.get('entries')
-    hash = "".join(e.get('id') for e in entries)
-    if hash != self.last_hash:
-      return True
+  # Check if feed has changed based on identifiers
+  def has_changed(self, data:dict) -> bool:
+    self.last_identifiers()
+    data = self.get_identifiers(data)
+    try:
+      etag = data.get('etag')
+      if etag != self.last_etag and etag is not None:
+        return True
+      updated = data.get('updated')
+      if updated != self.last_updated and updated is not None:
+        return True
+      hash = data.get('hash')
+      if hash != self.last_hash and hash is not None:
+        return True
+    except KeyError:
+      print("Key not found")
     return False
