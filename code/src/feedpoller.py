@@ -6,18 +6,13 @@ import platform
 import json
 
 
-ITEM_CNT = 15 # item count stays the same
-REUTERS_FINANCE_URL = f"""
-https://ir.thomsonreuters.com/rss/news-releases.xml?items={ITEM_CNT}
-"""
 HEADER_KEYS = ['etag','updated', 'updated_parsed', 'href']
 ENTRY_KEYS = ['title', 'summary', 'published', 'published_parsed', 'guid', 'link']
 OUT_PATH = '/code/output/data/'
 
 
 class FeedPoller():
-  def __init__(self, url = REUTERS_FINANCE_URL):
-    self.item_cnt = 15
+  def __init__(self, url):
     self.url = url
     self.header_keys = HEADER_KEYS
     self.entry_keys = ENTRY_KEYS
