@@ -8,19 +8,21 @@ import json
 
 HEADER_KEYS = ['etag','updated', 'updated_parsed', 'href']
 ENTRY_KEYS = ['title', 'summary', 'published', 'published_parsed', 'guid', 'link']
-OUT_PATH = '/code/output/data/'
+# OUT_PATH = '/code/output/data/'
 
 
 class FeedPoller():
-  def __init__(self, url):
+  def __init__(self, url, out_dir="code/output/data"):
     self.url = url
     self.header_keys = HEADER_KEYS
     self.entry_keys = ENTRY_KEYS
-    self.out_path = OUT_PATH
+    self.out_dir = out_dir
+    Path(self.out_dir).mkdir(parents=True, exist_ok=True)
     # Store last seen values. Update to retrieve
     self.last_etag = None 
     self.last_updated = None
     self.last_hash = None 
+
 
   # Make request to feed url 
   def get_feed(self) -> dict | None:
@@ -32,29 +34,29 @@ class FeedPoller():
       print(f"Error fetching feed: {e}")
       return None
 
-  # Extract header details
-  def process_header(self, feed: dict, key_list: list[str]) -> dict:
-    if not feed.get('bozo'):
-      new_dict = {k:v for (k,v) in feed.items() if k in key_list}
-    else:
-      raise Exception("Feed is marked bozo")
-    return new_dict
+  # # Extract header details
+  # def process_header(self, feed: dict, key_list: list[str]) -> dict:
+  #   if not feed.get('bozo'):
+  #     new_dict = {k:v for (k,v) in feed.items() if k in key_list}
+  #   else:
+  #     raise Exception("Feed is marked bozo")
+  #   return new_dict
 
-  # Extract entry details
-  def process_entries(self, feed: dict, key_list: list[str]) -> list:
-    processed_entries = [
-      {key: entry.get(key) for key in key_list}
-      for entry in feed.entries
-      ]
-    return processed_entries
+  # # Extract entry details
+  # def process_entries(self, feed: dict, key_list: list[str]) -> list:
+  #   processed_entries = [
+  #     {key: entry.get(key) for key in key_list}
+  #     for entry in feed.entries
+  #     ]
+  #   return processed_entries
 
-  # Merge headers with entries
-  def header_entries(self) -> dict:
-    feed = self.get_feed()
-    header_dict = self.process_header(feed, self.header_keys)
-    entry_dict = self.process_entries(feed, self.entry_keys)
-    header_entries = {"header":header_dict, "items":entry_dict}  
-    return header_entries
+  # # Merge headers with entries
+  # def header_entries(self) -> dict:
+  #   feed = self.get_feed()
+  #   header_dict = self.process_header(feed, self.header_keys)
+  #   entry_dict = self.process_entries(feed, self.entry_keys)
+  #   header_entries = {"header":header_dict, "items":entry_dict}  
+  #   return header_entries
   
   # Get current datetime and format
   def get_now_utc(self) -> str:
@@ -156,3 +158,28 @@ class FeedPoller():
     except KeyError:
       print("Key not found")
     return False
+  
+ # --- Persist feed ---
+  def save(self, feed):
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        path = f"{self.out_dir}/{ts}.json"
+        data = {
+            "header": {
+                "etag": feed.get("etag"),
+                "updated": feed.feed.get("updated"),
+            },
+            "items": [
+                {
+                    "title": e.get("title"),
+                    "summary": e.get("summary"),
+                    "published": e.get("published"),
+                    "guid": e.get("guid"),
+                    "link": e.get("link"),
+                }
+                for e in feed.entries
+            ],
+        } 
+
+        path.write_text(json.dumps(data, indent=2))
+
+        return data
