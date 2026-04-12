@@ -2,13 +2,13 @@ import requests
 import feedparser
 from datetime import datetime, timezone
 from pathlib import Path
+import hashlib
 import platform
 import json
 
 
 HEADER_KEYS = ['etag','updated', 'updated_parsed', 'href']
 ENTRY_KEYS = ['title', 'summary', 'published', 'published_parsed', 'guid', 'link']
-# OUT_PATH = '/code/output/data/'
 
 
 class FeedPoller():
@@ -20,144 +20,63 @@ class FeedPoller():
     Path(self.out_dir).mkdir(parents=True, exist_ok=True)
     # Store last seen values. Update to retrieve
     self.last_etag = None 
-    self.last_updated = None
-    self.last_hash = None 
+    self.last_modified = None
+    self.last_hash = None
+    self.load_state()
 
+# -- Load state of feed based on file ids
+  def load_state(self):
+    state_file = f"{self.out_dir}/state.json"
+    if Path(state_file).exists():
+        ids = json.loads(Path(state_file).read_text())
+        self.last_etag = ids.get("etag")
+        self.last_modified = ids.get("updated")
+        self.last_hash = ids.get("hash")
 
-  # Make request to feed url 
-  def get_feed(self) -> dict | None:
+  # --- Fetch feed with conditional GET --- 
+  def fetch(self):
+    headers = {}
+    if self.last_etag not in (None, ""):
+      headers["If-None-Match"] = self.last_etag
+    if self.last_modified not in (None, ""):
+      headers["If-Modified-Since"] = self.last_modified
     try:
-      response = requests.get(self.url, timeout=10)
-      response.raise_for_status()
-      return feedparser.parse(response.content)
+      r = requests.get(self.url, headers=headers, timeout=10)
+      if r.status_code == 304:
+        return None  # unchanged
+      r.raise_for_status()
+      return feedparser.parse(r.content)
     except requests.RequestException as e:
       print(f"Error fetching feed: {e}")
-      return None
+      return "error"
 
-  # # Extract header details
-  # def process_header(self, feed: dict, key_list: list[str]) -> dict:
-  #   if not feed.get('bozo'):
-  #     new_dict = {k:v for (k,v) in feed.items() if k in key_list}
-  #   else:
-  #     raise Exception("Feed is marked bozo")
-  #   return new_dict
-
-  # # Extract entry details
-  # def process_entries(self, feed: dict, key_list: list[str]) -> list:
-  #   processed_entries = [
-  #     {key: entry.get(key) for key in key_list}
-  #     for entry in feed.entries
-  #     ]
-  #   return processed_entries
-
-  # # Merge headers with entries
-  # def header_entries(self) -> dict:
-  #   feed = self.get_feed()
-  #   header_dict = self.process_header(feed, self.header_keys)
-  #   entry_dict = self.process_entries(feed, self.entry_keys)
-  #   header_entries = {"header":header_dict, "items":entry_dict}  
-  #   return header_entries
   
-  # Get current datetime and format
-  def get_now_utc(self) -> str:
-    now_utc = datetime.now(timezone.utc)\
-      .strftime('%Y%m%d_%H%M%S')
-    return now_utc
-  
-  # format path for windows machine
-  def format_path(self):
-    cwd = Path.cwd()
-    if platform.system() == "Windows":
-      cwd = str(cwd).replace('\\', '/')
-    return cwd
-  
-  # create file name using current working dir and current time 
-  def create_filename(self, ext='.json'):
-    cwd = self.format_path()
-    now_utc = self.get_now_utc()
-    filename = str(cwd) + self.out_path + now_utc + ext 
-    return filename
-  
-  # Append changes to existing file or create new
-  def write_to_file(self, header_entries:dict):
-    filename = self.create_filename()
-    try: 
-      with open(filename, 'x') as file:
-        json.dump(header_entries, file, indent=4)
-        print(f"File written to {filename}")
-    except FileExistsError:
-        print(f"File could not be written to {filename}")
+# --- Extract identifiers ---
+  def identifiers(self, feed):
+      etag = feed.get("etag")
+      updated = feed.feed.get("updated")
+      # stable fingerprint from GUIDs
+      h = hashlib.sha256()
+      for e in feed.entries:
+          h.update("".join(json.dumps(e, sort_keys=True, default=str) for e in feed.entries).encode())
+      return {
+          "etag": etag,
+          "updated": updated,
+          "hash": h.hexdigest(),
+      }
 
-  # create path for files
-  def create_path(self) -> str: 
-    cwd = self.format_path()
-    data_path = self.out_path
-    relative_path = str(cwd) + data_path
-    return relative_path
-
-  # get file name
-  def get_files(self) -> list:
-    relative_path = self.create_path()
-    path = Path(relative_path)
-    filenames = [file.name for file in path.iterdir()]
-    return filenames
-
-  # get latest file data
-  def latest_file(self):
-    filenames = self.get_files()
-    filenames_sorted = sorted(filenames, reverse=True)
-    full_path = self.create_path() + filenames_sorted[0]
-    try: 
-      with open(full_path, 'r') as file:
-        latest_file = json.load(file)
-        return latest_file
-    except FileNotFoundError:
-        print(f"File could not be found")
-  
-  # get identifiers from data
-  def get_identifiers(self, data: dict) -> dict:
-    etag = [e.get('etag') for e in data['header']]
-    last_updated = [e.get('last_updated') for e in data['header']]
-    hash = "".join(e.get('guid') for e in data['items'])
-    identity_dict = {"etag": etag
-                     , "last_updated":last_updated
-                     , "hash": hash} 
-    return identity_dict
-
-  # get identifiers from previous file
-  def last_identifiers(self):
-    last_data = self.latest_file()
-    identity_dict = self.get_identifiers(last_data)
-    last_etag = identity_dict.get('etag')
-    last_updated = identity_dict.get('last_updated')
-    last_hash = identity_dict.get('hash') 
-    try:
-      if last_etag is not None:
-        self.last_etag = last_etag 
-      if last_updated is not None: 
-        self.last_updated = last_updated
-      if last_updated is not None:
-        self.last_hash = last_hash
-    except KeyError:
-      print("Key not found")
-
-  # Check if feed has changed based on identifiers
-  def has_changed(self, data:dict) -> bool:
-    self.last_identifiers()
-    data = self.get_identifiers(data)
-    try:
-      etag = data.get('etag')
-      if etag != self.last_etag and etag is not None:
-        return True
-      updated = data.get('updated')
-      if updated != self.last_updated and updated is not None:
-        return True
-      hash = data.get('hash')
-      if hash != self.last_hash and hash is not None:
-        return True
-    except KeyError:
-      print("Key not found")
-    return False
+# --- Detect change ---
+  def has_changed(self, ids):
+      if self.last_etag:
+        if self.last_etag not in (None, "") and ids["etag"] != self.last_etag:
+          return True
+      if self.last_modified:
+         if self.last_modified not in (None, "") and ids["updated"] != self.last_modified:
+          return True
+      if self.last_hash:
+        if self.last_hash not in (None, "") and ids["hash"] != self.last_hash:
+          return True
+      return False
   
  # --- Persist feed ---
   def save(self, feed):
@@ -179,7 +98,24 @@ class FeedPoller():
                 for e in feed.entries
             ],
         } 
-
-        path.write_text(json.dumps(data, indent=2))
-
+        Path(path).write_text(json.dumps(data, indent=2))
         return data
+  
+  def save_state(self, ids):
+    state_file = f"{self.out_dir}/state.json"
+    Path(state_file).write_text(json.dumps(ids))
+
+  # --- Main poll step ---
+  def poll(self):
+    feed = self.fetch()
+    if feed == "error":
+      print("Network error — skipping change detection")
+      return print("error")
+    if feed is None:
+      return False #304 Not Modified
+    ids = self.identifiers(feed)
+    changed = self.has_changed(ids)
+    if changed:
+        self.save(feed)
+        self.save_state(ids)
+    return changed
