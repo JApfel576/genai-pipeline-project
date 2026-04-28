@@ -11,8 +11,14 @@ services:
   server:
     build:
       context: .
+    volumes:
+      - feed-data:/var/data
     ports:
       - 8000:8000
+
+volumes:
+  feed-data:
+    external: true
 
 # The commented out section below is an example of how to define a PostgreSQL
 # database that your application can use. `depends_on` tells Docker Compose to
