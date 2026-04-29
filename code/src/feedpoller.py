@@ -12,7 +12,7 @@ ENTRY_KEYS = ['title', 'summary', 'published', 'published_parsed', 'guid', 'link
 
 
 class FeedPoller():
-  def __init__(self, url, out_dir="code/output/data"):
+  def __init__(self, url, out_dir="/var/data"):
     self.url = url
     self.header_keys = HEADER_KEYS
     self.entry_keys = ENTRY_KEYS
@@ -32,13 +32,17 @@ class FeedPoller():
         self.last_etag = ids.get("etag")
         self.last_modified = ids.get("updated")
         self.last_hash = ids.get("hash")
+    else:
+    # -- create state file if it doesn't exist
+      ids = {"etag": "", "updated": "", "hash": ""}
+      self.save_state(ids)
 
   # --- Fetch feed with conditional GET --- 
   def fetch(self):
     headers = {}
-    if self.last_etag not in (None, ""):
+    if self.last_etag != "":
       headers["If-None-Match"] = self.last_etag
-    if self.last_modified not in (None, ""):
+    if self.last_modified != "":
       headers["If-Modified-Since"] = self.last_modified
     try:
       r = requests.get(self.url, headers=headers, timeout=10)
@@ -67,16 +71,13 @@ class FeedPoller():
 
 # --- Detect change ---
   def has_changed(self, ids):
-      if self.last_etag:
-        if self.last_etag not in (None, "") and ids["etag"] != self.last_etag:
-          return True
-      if self.last_modified:
-         if self.last_modified not in (None, "") and ids["updated"] != self.last_modified:
-          return True
-      if self.last_hash:
-        if self.last_hash not in (None, "") and ids["hash"] != self.last_hash:
-          return True
-      return False
+    if self.last_etag != "" and ids["etag"] != self.last_etag:
+        return True
+    if self.last_modified != "" and ids["updated"] != self.last_modified:
+        return True
+    if self.last_hash != "" and ids["hash"] != self.last_hash:
+        return True
+    return False
   
  # --- Persist feed ---
   def save(self, feed):
