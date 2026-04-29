@@ -39,7 +39,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     python -m pip install -r requirements.txt
 
 # create directory for volume data
-RUN mkdir -p /var/data
+RUN mkdir -p /var/data \
+&& chown -R appuser:appuser /var/data
 
 # Switch to the non-privileged user to run the application.
 USER appuser
