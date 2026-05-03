@@ -38,7 +38,10 @@ def health_check():
 # If url is not provided or without proper format return default
 @app.get("/url")
 def url_provider(url_input: Annotated[str | None
-, AfterValidator(check_url)] = None
+, AfterValidator(check_url)
+, Query(
+  description= "Url for google news search"
+) ] = None
 ):
   if check_url(url_input):
     return create_url(url_input)    
